@@ -190,8 +190,17 @@
     </div>
 
     <div class="button-container">
-        <button onclick="downloadSchedule()">Download Schedule</button>
+        <button onclick="shareSchedule()">📱 Share Schedule</button>
+        <button onclick="printToPDF()">📄 Print/Save as PDF</button>
         <button class="clear-btn" onclick="clearAll()">Clear All</button>
+    </div>
+    
+    <div id="instructions" style="background: #fff3cd; padding: 15px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #ffc107;">
+        <strong>📱 For iPhone/iPad Users:</strong>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+            <li><strong>"Share Schedule"</strong> - Uses your device's native share menu to send via text, email, AirDrop, etc.</li>
+            <li><strong>"Print/Save as PDF"</strong> - Opens print dialog where you can save as PDF or print directly</li>
+        </ul>
     </div>
 
     <div id="schedule">
@@ -661,19 +670,86 @@
     </div>
 
     <script>
-        function downloadSchedule() {
+        async function shareSchedule() {
             const weekOf = document.getElementById('weekOf').value || 'Schedule';
-            const content = document.documentElement.outerHTML;
             
-            const blob = new Blob([content], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `deployment-schedule-${weekOf.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.html`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            // Hide buttons for sharing
+            document.querySelector('.button-container').style.display = 'none';
+            document.getElementById('instructions').style.display = 'none';
+            
+            // Create a canvas from the page
+            try {
+                // For iOS Safari, we'll use the Web Share API with a generated text summary
+                if (navigator.share) {
+                    const scheduleText = generateScheduleText();
+                    await navigator.share({
+                        title: `Deployment Schedule - ${weekOf}`,
+                        text: scheduleText,
+                    });
+                } else {
+                    alert('Sharing is not supported on this device. Please use "Print/Save as PDF" instead.');
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error('Share failed:', err);
+                    alert('Could not share. Please use "Print/Save as PDF" instead.');
+                }
+            } finally {
+                // Show buttons again
+                document.querySelector('.button-container').style.display = 'block';
+                document.getElementById('instructions').style.display = 'block';
+            }
+        }
+        
+        function generateScheduleText() {
+            const weekOf = document.getElementById('weekOf').value || 'Week';
+            let text = `DEPLOYMENT SCHEDULE - ${weekOf}\n\n`;
+            
+            const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+            const sections = document.querySelectorAll('.day-section');
+            
+            sections.forEach((section, index) => {
+                text += `${days[index]}\n`;
+                text += '━'.repeat(40) + '\n';
+                
+                const shifts = section.querySelectorAll('.shift');
+                shifts.forEach(shift => {
+                    const shiftTitle = shift.querySelector('.shift-title').textContent;
+                    text += `\n${shiftTitle}\n`;
+                    
+                    const positions = shift.querySelectorAll('.position-row');
+                    let currentSection = '';
+                    
+                    positions.forEach(pos => {
+                        const sectionTitle = pos.closest('.section').querySelector('.section-title').textContent;
+                        if (sectionTitle !== currentSection) {
+                            text += `\n  ${sectionTitle}:\n`;
+                            currentSection = sectionTitle;
+                        }
+                        
+                        const label = pos.querySelector('.position-label').textContent;
+                        const value = pos.querySelector('input').value || '___________';
+                        text += `    ${label} ${value}\n`;
+                    });
+                });
+                text += '\n\n';
+            });
+            
+            return text;
+        }
+        
+        function printToPDF() {
+            // Hide buttons and instructions before printing
+            document.querySelector('.button-container').style.display = 'none';
+            document.getElementById('instructions').style.display = 'none';
+            
+            window.print();
+            
+            // Show them again after print dialog closes
+            setTimeout(() => {
+                document.querySelector('.button-container').style.display = 'block';
+                document.getElementById('instructions').style.display = 'block';
+            }, 1000);
         }
 
         function clearAll() {
